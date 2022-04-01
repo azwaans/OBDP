@@ -1,0 +1,224 @@
+############################################################################################
+#
+# RevBayes Ancestral Population Estimation - Empirical data - Diversity trajectory of
+# cetaceans
+#
+# Model: Tree is drawn from a piecewise constant birth-death process with occurrences.
+# We use the tree and parameter traces from an MCMC run to infer the diversity trajectory of cetaceans.
+#
+#
+# authors: Jérémy Andréoletti.
+#
+############################################################################################
+
+seed(12345)
+
+#######################
+# Reading in the Data #
+#######################
+
+
+
+file_path = "MCMC_OUTPUTS_PATH/"
+
+# Choose your burnin and subsampling
+burninPercentage <- 0
+
+### Read in data
+occurrence_ranges <- readMatrix(file="DATA_PATH/Cetacea_occurrences_min_max_age_species_corrected.csv", delimiter=",")
+trees = readTreeTrace(file_path + "mcmc_OBDP_Cetaceans_wellMixedTrees.trees", burnin=burninPercentage)
+trace = readTrace(file_path + "mcmc_OBDP_Cetaceans_wellMixedTrees.out", burnin=burninPercentage)
+
+# Trace[] vector with 17 values :
+     # [1] Trace (Iteration)
+     # [2] Trace (alpha_morpho)
+     # [3] Trace (alpha_seq_mit)
+     # [4] Trace (alpha_seq_nuc)
+     # [5] Trace (bias_Aq)
+     # [6] Trace (bias_Mss)
+     # [7] Trace (bias_Rp)
+     # [8-211] Trace (branch_rates_mit[1-204])
+     # [212] Trace (branch_rates_mit_mean)
+     # [213-416] Trace (branch_rates_nuc[1-204])
+     # [417] Trace (branch_rates_nuc_mean)
+     # [418] Trace (clock_morpho)
+     # [419] Trace (diversification[11])
+     # [420] Trace (diversification[1])
+     # [421] Trace (diversification[2])
+     # [422] Trace (diversification[5])
+     # [423] Trace (diversification[8])
+     # [424] Trace (er_mit)
+     # [425] Trace (er_nuc)
+     # [426] Trace (mu[11])
+     # [427] Trace (mu[1])
+     # [428] Trace (mu[2])
+     # [429] Trace (mu[5])
+     # [430] Trace (mu[8])
+     # [431] Trace (obd_tree)
+     # [432] Trace (pm)
+     # [433] Trace (psiPlusOmega[1])
+     # [434] Trace (rho)
+     # [435] Trace (sf_mit)
+     # [436] Trace (sf_nuc)
+     # [437] Trace (start_time)
+     # [438] Trace (t1)
+     # [439] Trace (t2)
+     # [440] Trace (t3)
+     # [441] Trace (t4)
+
+### Model Occurrence Age Uncertainty
+for(j in 1:occurrence_ranges.size()) {
+    min_j = occurrence_ranges[j][1]
+    max_j = occurrence_ranges[j][2]
+    occurrence_ages[j] ~ dnUniform(min_j, max_j)
+}
+
+nb_trees <- trees.getNumberSamples()
+burnin <- trees.getBurnin()
+
+# Fixed OBDP parameters
+rm <- 0.0                              # Set the same removal probability as in your analysis
+N <- 85                                # Choose the maximum number of hidden lineages
+cond <- "survival"                     # Choose the conditioning of the density
+nb_time_points <- 200                  # Choose the number of time points you want to evaluate
+
+# Traces of the OBDP parameters
+print("Check in trace that the values correspond well (else display the trace and change the indices) :")
+
+trace_bias_Aq = trace[5] ; print("trace_bias_Aq : ", trace_bias_Aq)
+trace_bias_Mss = trace[6] ; print("trace_bias_Mss : ", trace_bias_Mss)
+trace_bias_Rp = trace[7] ; print("trace_bias_Rp : ", trace_bias_Rp)
+
+trace_diversification_1 = trace[420] ; print("trace_diversification_1 : ", trace_diversification_1)
+trace_diversification_2 = trace[421] ; print("trace_diversification_2 : ", trace_diversification_2)
+trace_diversification_5 = trace[422] ; print("trace_diversification_5 : ", trace_diversification_5)
+trace_diversification_8 = trace[423] ; print("trace_diversification_8 : ", trace_diversification_8)
+trace_diversification_11 = trace[419] ; print("trace_diversification_11 : ", trace_diversification_11)
+
+trace_mu_1 = trace[427] ; print("trace_mu_1 : ", trace_mu_1)
+trace_mu_2 = trace[428] ; print("trace_mu_2 : ", trace_mu_2)
+trace_mu_5 = trace[429] ; print("trace_mu_5 : ", trace_mu_5)
+trace_mu_8 = trace[430] ; print("trace_mu_8 : ", trace_mu_8)
+trace_mu_11 = trace[426] ; print("trace_mu_11 : ", trace_mu_11)
+
+trace_pm = trace[432] ; print("trace_pm : ", trace_pm)
+
+trace_psiPlusOmega_1 = trace[433] ; print("trace_psiPlusOmega_1 : ", trace_psiPlusOmega_1)
+
+trace_rho = trace[434] ; print("trace_rho : ", trace_rho)
+
+trace_start_time = trace[437] ; print("trace_start_time : ", trace_start_time)
+
+trace_t1 = trace[438] ; print("trace_t1 : ", trace_t1)
+trace_t2 = trace[439] ; print("trace_t2 : ", trace_t2)
+trace_t3 = trace[440] ; print("trace_t3 : ", trace_t3)
+trace_t4 = trace[441] ; print("trace_t4 : ", trace_t4)
+
+# Define the times points at which density is computed according the the oldest start_time
+max_age <- max(trace_start_time.getValues())
+time_points <- seq(0,max_age*(1+0.5/(nb_time_points-1)), max_age/(nb_time_points-1))
+
+verbose <- TRUE
+
+write("Start ages\n", trace_start_time.getValues(), "\n", filename=file_path + "start_time_trace_N" + N + "_S" + nb_time_points + ".txt", append=FALSE)
+write("Kt\n", filename=file_path + "Kt_trace_N" + N + "_S" + nb_time_points + ".txt", append=FALSE)
+
+print ("Remaining trees after burnin : " + (nb_trees-burnin))
+
+for (i in 1:(nb_trees-burnin)){
+
+     # Tree
+     obd_tree <- trees.getTree(burnin+i)
+
+     # Variable OBDP parameters
+     start_time <- trace_start_time.getValues()[i]
+     rho <- trace_rho.getValues()[i]
+     pm <- trace_pm.getValues()[i]
+
+
+     ## Skyline timeline
+     t1 <- trace_t1.getValues()[i]
+     t_MP <- 5.333                      # Miocene_Pliocene boundary
+     t_TM <- 7.246                      # Tortonian-Messinian boundary
+     t2 <- trace_t2.getValues()[i]
+     t_AB <- 20.43                      # Aquitian-Burdigalian boundary
+     t_OM <- 23.02                      # Oligocene_Miocene (Paleogene-Neogene) boundary
+     t3 <- trace_t3.getValues()[i]
+     t_CR <- 28.1                       # Chattian-Rupelian boundary
+     t_EO <- 33.9                       # Eocene-Oligocene boundary
+     t4 <- trace_t4.getValues()[i]
+
+     timeline := v(t1,t_MP,t_TM,t2,t_AB,t_OM,t3,t_CR,t_EO,t4)
+
+     ## Reparametrization of the speciation and extinction rates
+     diversification[1] <- trace_diversification_1.getValues()[i]     # Diversification represents the rate at which the species diversity increases : diversification = lambda - mu
+     diversification[2] <- trace_diversification_2.getValues()[i]
+     diversification[3] := diversification[2]
+     diversification[4] := diversification[2]
+     diversification[5] <- trace_diversification_5.getValues()[i]
+     diversification[6] := diversification[5]
+     diversification[7] := diversification[5]
+     diversification[8] <- trace_diversification_8.getValues()[i]
+     diversification[9] := diversification[8]
+     diversification[10] := diversification[8]
+     diversification[11] <- trace_diversification_11.getValues()[i]
+     mu[1] <- trace_mu_1.getValues()[i]                               # Extinction rate, includes largely the extinction rates estimated by Rabosky (2014)
+     mu[2] <- trace_mu_2.getValues()[i]
+     mu[3] := mu[2]
+     mu[4] := mu[2]
+     mu[5] <- trace_mu_5.getValues()[i]
+     mu[6] := mu[5]
+     mu[7] := mu[5]
+     mu[8] <- trace_mu_8.getValues()[i]
+     mu[9] := mu[8]
+     mu[10] := mu[8]
+     mu[11] <- trace_mu_11.getValues()[i]
+
+     lambda := diversification + mu                                   # Speciation rate
+
+     ## Reparametrization of the fossil sampling rates
+     psiPlusOmega[1] <- trace_psiPlusOmega_1.getValues()[i]           # Global rate of fossil sampling including complete fossils as well as occurrences
+     psiPlusOmega[2] := psiPlusOmega[1]
+     bias_Mss <- trace_bias_Mss.getValues()[i]                        # Messinian : expected lower sampling rate
+     psiPlusOmega[3] := psiPlusOmega[1] * bias_Mss
+     psiPlusOmega[4] := psiPlusOmega[1]
+     psiPlusOmega[5] := psiPlusOmega[1]
+     bias_Aq <- trace_bias_Aq.getValues()[i]                          # Early Miocene (Aquitalian) : expected lower sampling rate
+     psiPlusOmega[6] := psiPlusOmega[1] * bias_Aq
+     psiPlusOmega[7] := psiPlusOmega[1]
+     psiPlusOmega[8] := psiPlusOmega[1]
+     bias_Rp <- trace_bias_Rp.getValues()[i]                          # Early Oligocene (Rupelian) : expected lower sampling rate
+     psiPlusOmega[9] := psiPlusOmega[1] * bias_Rp
+     psiPlusOmega[10] := psiPlusOmega[1]
+     psiPlusOmega[11] := psiPlusOmega[1]
+
+
+     psi := pm * psiPlusOmega
+     omega := psiPlusOmega - psi
+
+
+     print("Tree " + i + " over " + (nb_trees-burnin))
+
+     Kt = fnInferAncestralPopSize( originAge=start_time,
+                                   lambda=lambda,
+                                   mu=mu,
+                                   psi=abs(psi),
+                                   omega=abs(omega),
+                                   rho=rho,
+                                   removalPr=rm,
+                                   maxHiddenLin=N,
+                                   condition=cond,
+                                   occurrence_ages=occurrence_ages,
+                                   time_points=time_points,
+                                   timeTree=obd_tree,
+                                   timeline = timeline,
+                                   verbose=verbose)
+
+     # print("Kt : ", Kt)
+
+     write(";", Kt, "\n", filename=file_path + "Kt_trace_N" + N + "_S" + nb_time_points + ".txt", append=TRUE)
+}
+
+
+# you may want to quit RevBayes now
+# q()
