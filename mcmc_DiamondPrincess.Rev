@@ -1,0 +1,205 @@
+###############################################################################
+#
+# RevBayes MCMC on Empirical data - COVID-19 aboard the diamond princess cruise ship - Skyline occurrence birth-death process. 
+#
+# Model: Tree is drawn from a piecewise constant birth-death process with occurrences.
+#
+# authors: Antoine Zwaans
+#
+################################################################################
+
+seed(12345)
+
+#######################
+# Reading in the Data #
+#######################
+
+taxa <- readTaxonData("data_diamond/data_taxa.csv",delimiter=" ")
+sequences <- readDiscreteCharacterData("data_diamond/data_seq.nex")
+occurrence_ages <- readMatrix(file="data_diamond/data_occurrences_2.csv", delimiter="; ")[1]
+
+n_occ <- occurrence_ages.size()
+n_taxa <- taxa.size()
+
+#total number of tests = 4061
+#total population onboard = 3711
+
+#################################
+# Setting rate priors and moves #
+#################################
+
+#accuracy of our algorithm number of hidden lineages
+N <- 40
+
+#condition of the algorithm
+cond <- "time"
+
+#we fix the beginning of the process to the start of thew cruise
+origin_time <- 38
+
+#Which likelihood algorithm is used
+Mt <- TRUE
+
+##############################################
+#Setting the full timeline for all parameters#
+##############################################
+timeline <- v(9,12,16,23)
+
+#####transmission/becoming infectious rate: lambda. We allow for 1 shift, when cabin isolation was made mandatory on 05.02 (day 22)
+infectious[1] ~ dnUnif(0,10)
+infectious[2] := infectious[1]
+infectious[3] := infectious[1]
+infectious[4] := infectious[1]
+infectious[5] ~ dnUnif(0,24)
+
+###
+
+####total sampling including PCR testing and sequencing: psi + omega. We allow for 1 shift, when the testing was extended to asymptomatic passengers on 11.02 (day 16)
+#the total number of samples tested over each period is used to center the prior distribution around the averaged sampling rate.
+#until 11.02 (day 22), 439 samples were obtained
+#mean for the prior = 1/(7/439)/3711
+
+samp_mean_4 <- ln(1/((7/439)*3711))
+
+#between 11.02 (day 22) and the end of the cruise, 3622 samples additional samples were obtained
+#mean for the prior = 1/((15/3622)*3711)
+
+samp_mean_1 <- ln(1/((15/3622)*3711))
+###
+
+###
+psiPlusOmega[1] ~ dnLognormal(mean=samp_mean_1,sd=0.5)
+psiPlusOmega[2] := psiPlusOmega[1]
+psiPlusOmega[3] := psiPlusOmega[1]
+psiPlusOmega[4] ~ dnLognormal(mean=samp_mean_4,sd=0.5)
+psiPlusOmega[5] := 0.0
+
+####
+
+#probability that a sample will be sequenced: pm. Samples were sequenced between 15.02 (day 12) and 17.02 (day 9).
+#257 samples tested positive in this timeframe
+#71  samples were sequenced
+#we fix pm at the empirical sequencing proportion
+
+###
+pm[1] <- 0.0
+pm[2] <- (71 / (257 + 71))
+pm[3] <- 0.0
+pm[4] <- 0.0
+pm[5] <- 0.0
+
+####
+
+sequencing := pm * psiPlusOmega
+testing := abs(psiPlusOmega - sequencing)
+
+
+#####extinction/becoming uninfectious rate: mu. No shifts. We assume that in the absence of sampling, patients are infectious during 20 days.
+uninfectious <- 1/20
+###
+
+#####sampling probability at present: rho. No shifts. There are no samples at t = 0.
+extant_sampling <- 0.0
+###
+
+######removal probability after sampling: r. No shifts. We assume that once patients test positive, they are removed from the infectious population (disembarked)
+removal <- 1.0
+###
+
+######initialise my move index
+mvi = 1
+
+#####moves for stochastic variables
+moves[mvi++] = mvScale(infectious[1],   lambda = 1.0, weight=1.0, tune=TRUE)
+moves[mvi++] = mvScale(infectious[5],   lambda = 1.0, weight=1.0, tune=TRUE)
+moves[mvi++] = mvScale(psiPlusOmega[1], lambda = 1.0, weight=2.0, tune=TRUE)
+moves[mvi++] = mvScale(psiPlusOmega[4], lambda = 1.0, weight=2.0, tune=TRUE)
+###
+
+#####creating R variable to be monitored
+r := infectious / ( uninfectious + removal * ( sequencing + testing ) )
+###
+
+###################################################################################
+### Defining the tree-prior distribution piecewise constant birth-death process ###
+###################################################################################
+
+obd_tree ~  dnOBDP2(originAge=origin_time,
+                    timeline=timeline,
+                    lambda=infectious,
+                    mu=uninfectious,
+                    phi=sequencing,
+                    omega=testing,
+                    Phi=extant_sampling,
+                    occurrence_ages=occurrence_ages,
+                    cond=cond,
+                    r=removal,
+                    taxa=taxa,
+                    useMt=TRUE,
+                    verbose=TRUE,
+                    maxHiddenLin=N)
+
+moves[mvi++] = mvFNPR(obd_tree, weight=20.0)
+moves[mvi++] = mvNodeTimeSlideUniform(obd_tree, weight=5.0)
+moves[mvi++] = mvRootTimeSlideUniform(obd_tree, origin_time, weight=1.0)
+
+
+moves[mvi++] = mvCollapseExpandFossilBranch(obd_tree, origin_time, weight=1.0)
+
+##########################
+#Sequence evolution model#
+##########################
+
+#strict clock model with lambda = 0.0008/365in substitutions per
+branch_rates <- 0.0008/365
+
+#nucleotide evolution HKY model
+pi_prior <- v(1,1,1,1)
+pi ~ dnDirichlet(pi_prior)
+
+moves[mvi++] = mvBetaSimplex(pi, weight=5)
+moves[mvi++] = mvDirichletSimplex(pi, weight=5)
+
+kappa ~ dnLognormal(0.0, 1.0)
+moves[mvi++] =  mvScale(kappa)
+
+Q_epi := fnHKY(kappa,pi)
+
+alpha_epi ~ dnExponential( 1.0 )
+moves[mvi++] =  mvScale(alpha_epi, lambda=0.1, tune=TRUE)
+
+
+rates_epi := fnDiscretizeGamma( alpha_epi, alpha_epi, 4 )
+
+phySeq ~ dnPhyloCTMC(tree=obd_tree, Q=Q_epi, siteRates=rates_epi, branchRates=branch_rates, type="DNA")
+phySeq.clamp(sequences)
+
+##########################
+# Setting the MCMC model #
+##########################
+
+mymodel = model(obd_tree)
+# We define our model.
+# We can use any node of our model as a handle, here we chose to use the tree.
+monitors[1] = mnStochasticVariable(filename="OBDP2_diam_timeline/trace.out", printgen=1)
+monitors[2] = mnFile(filename="OBDP2_diam_timeline/trees.trees", printgen=1,obd_tree)
+monitors[3] = mnFile(filename="OBDP2_diam_timeline/r.out", printgen=1,r)
+monitors[4] = mnScreen(printgen=1,r,infectious)
+
+
+mymcmc = mcmc(mymodel, monitors, moves)
+
+mymcmc.run(generations=1000000, tuningInterval=100, checkpointInterval=100, checkpointFile="OBDP2_diam_timeline/skyline.state")
+
+# check the performance of the MCMC/moves
+mymcmc.operatorSummary()
+
+# Read in the tree trace and construct the maximum clade credibility (MCC) tree #
+trace = readTreeTrace("OBDP2_diam_timeline/trees.trees")
+
+# Summarize tree trace and save MCC tree to file
+mccTree(trace, file="OBDP2_diam_timeline/tree.tre" )
+
+
+# you may want to quit RevBayes now
+q()
