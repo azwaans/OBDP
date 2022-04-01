@@ -7,7 +7,7 @@
 # incidence for the Diamond Princess SARS-CoV2 outbreak.
 #
 #
-# authors: Jérémy Andréoletti, Antoine Zwaans.
+# authors: Antoine Zwaans.
 #
 ############################################################################################
 
@@ -22,9 +22,9 @@ burninPercentage <- 0.10
 
 
 ### Read in data
-occurrence_ages <- readMatrix(file="data_diamond/data_occurrences_2.csv", delimiter=";")[1]
-trace = readTrace("OBDP_combined/trace.out", burnin=burninPercentage)
-trees = readTreeTrace("OBDP_combined/trees.trees", burnin=burninPercentage)
+occurrence_ages <- readMatrix(file="DATA_PATH/data_occurrences_2.csv", delimiter=";")[1]
+trace = readTrace("MCMC_OUTPUTS_PATH/trace.out", burnin=burninPercentage)
+trees = readTreeTrace("MCMC_OUTPUTS_PATH/trees.trees", burnin=burninPercentage)
 
 
 # Trace[] vector with 9 values

@@ -1,6 +1,6 @@
 ###############################################################################
 #
-# RevBayes MCMC on Empirical data - COVID-19 aboard the diamond princess cruise ship - Skyline occurrence birth-death process. 
+# RevBayes MCMC on Empirical data - COVID-19 aboard the diamond princess cruise ship - Skyline occurrence birth-death process.
 #
 # Model: Tree is drawn from a piecewise constant birth-death process with occurrences.
 #
@@ -10,13 +10,14 @@
 
 seed(12345)
 
+
 #######################
 # Reading in the Data #
 #######################
 
-taxa <- readTaxonData("data_diamond/data_taxa.csv",delimiter=" ")
-sequences <- readDiscreteCharacterData("data_diamond/data_seq.nex")
-occurrence_ages <- readMatrix(file="data_diamond/data_occurrences_2.csv", delimiter="; ")[1]
+taxa <- readTaxonData("DATA_PATH/data_taxa.csv",delimiter=" ")
+sequences <- readDiscreteCharacterData("DATA_PATH/data_seq.nex")
+occurrence_ages <- readMatrix(file="DATA_PATH/data_occurrences_2.csv", delimiter="; ")[1]
 
 n_occ <- occurrence_ages.size()
 n_taxa <- taxa.size()
@@ -179,26 +180,28 @@ phySeq.clamp(sequences)
 ##########################
 
 mymodel = model(obd_tree)
+
 # We define our model.
 # We can use any node of our model as a handle, here we chose to use the tree.
-monitors[1] = mnStochasticVariable(filename="OBDP2_diam_timeline/trace.out", printgen=1)
-monitors[2] = mnFile(filename="OBDP2_diam_timeline/trees.trees", printgen=1,obd_tree)
-monitors[3] = mnFile(filename="OBDP2_diam_timeline/r.out", printgen=1,r)
+
+monitors[1] = mnStochasticVariable(filename="MCMC_OUTPUTS_PATH/trace.out", printgen=1)
+monitors[2] = mnFile(filename="MCMC_OUTPUTS_PATH/trees.trees", printgen=1,obd_tree)
+monitors[3] = mnFile(filename="MCMC_OUTPUTS_PATH/r.out", printgen=1,r)
 monitors[4] = mnScreen(printgen=1,r,infectious)
 
 
 mymcmc = mcmc(mymodel, monitors, moves)
 
-mymcmc.run(generations=1000000, tuningInterval=100, checkpointInterval=100, checkpointFile="OBDP2_diam_timeline/skyline.state")
+mymcmc.run(generations=1000000, tuningInterval=100, checkpointInterval=100, checkpointFile="MCMC_OUTPUTS_PATH/skyline.state")
 
 # check the performance of the MCMC/moves
 mymcmc.operatorSummary()
 
 # Read in the tree trace and construct the maximum clade credibility (MCC) tree #
-trace = readTreeTrace("OBDP2_diam_timeline/trees.trees")
+trace = readTreeTrace("MCMC_OUTPUTS_PATH/trees.trees")
 
 # Summarize tree trace and save MCC tree to file
-mccTree(trace, file="OBDP2_diam_timeline/tree.tre" )
+mccTree(trace, file="MCMC_OUTPUTS_PATH/tree.tre" )
 
 
 # you may want to quit RevBayes now
