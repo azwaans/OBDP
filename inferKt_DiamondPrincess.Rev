@@ -22,9 +22,9 @@ burninPercentage <- 0.10
 
 
 ### Read in data
-occurrence_ages <- readMatrix(file="DATA_PATH/data_occurrences_2.csv", delimiter=";")[1]
-trace = readTrace("MCMC_OUTPUTS_PATH/trace.out", burnin=burninPercentage)
-trees = readTreeTrace("MCMC_OUTPUTS_PATH/trees.trees", burnin=burninPercentage)
+occurrence_ages <- readMatrix(file="data_diamond/data_occurrences_2.csv", delimiter=";")[1]
+trace = readTrace("OBDP2_diam_timeline_temp/trace.out", burnin=0.10)
+trees = readTreeTrace("OBDP2_diam_timeline_temp/trees.trees", burnin=burninPercentage)
 
 
 # Trace[] vector with 9 values
@@ -66,22 +66,21 @@ trees = readTreeTrace("MCMC_OUTPUTS_PATH/trees.trees", burnin=burninPercentage)
 #    Trace (psiPlusOmega[4])
 
 
-file_path         = "output_diam_Kt_combined/"
+file_path         = "output_diam_timeline_temp_infer/"
 nb_trees          <- trees.getNumberSamples()
 burnin            <- trees.getBurnin()
 
 # Fixed OBDP parameters
 
 rho               <- 0.0
-N                 <- 20
-cond              <- "survival"
-nb_time_points    <- 38
-interval_times    <- v(9.0,12.0,16.0,23.0)
+N                 <- 40
+nb_time_points    <- 500
+interval_times    <- v(9.0,12.0,16.0,22.0,23.0)
 start_time        <- 38.0
 trace_start_time  <- rep(start_time,nb_trees)
 mu                <- 1/20
 verb              <- TRUE
-pm                <- v(0,(71 / (257 + 71)),0,0,0)
+pm                <- v(0,(71 / (257 + 71)),0,0,0,0)
 rm                <- 1.0
 
 
@@ -113,10 +112,9 @@ for (i in 1:(nb_trees-burnin)){
      obd_tree.offset(9.12784147309139)
 
      # Variable OBDP parameters
-     lambda       <- v(trace_lambda_1.getValues()[i],trace_lambda_1.getValues()[i],trace_lambda_1.getValues()[i],trace_lambda_1.getValues()[i],trace_lambda_5.getValues()[i])
-     psiom        <- v(trace_psiom_1.getValues()[i],trace_psiom_1.getValues()[i],trace_psiom_1.getValues()[i],trace_psiom_4.getValues()[i],0.0)
+     lambda       <- v(trace_lambda_1.getValues()[i],trace_lambda_1.getValues()[i],trace_lambda_1.getValues()[i],trace_lambda_1.getValues()[i],trace_lambda_5.getValues()[i],trace_lambda_5.getValues()[i])
+     psiom        <- v(trace_psiom_1.getValues()[i],trace_psiom_1.getValues()[i],trace_psiom_1.getValues()[i],trace_psiom_4.getValues()[i],trace_psiom_4.getValues()[i],0.0)
      psi          <- psiom*pm
-     print("psi = " + psi )
      omega        <- abs( psiom - psi )
 
      Kt           = fnInferAncestralPopSize( originAge=start_time,
@@ -127,7 +125,6 @@ for (i in 1:(nb_trees-burnin)){
                                    rho=rho,
                                    removalPr=rm,
                                    maxHiddenLin=N,
-                                   condition=cond,
                                    occurrence_ages=occurrence_ages,
                                    time_points=time_points,
                                    timeTree=obd_tree,

@@ -32,9 +32,6 @@ n_taxa <- taxa.size()
 #accuracy of our algorithm number of hidden lineages
 N <- 40
 
-#condition of the algorithm
-cond <- "time"
-
 #we fix the beginning of the process to the start of thew cruise
 origin_time <- 38
 
@@ -133,7 +130,6 @@ obd_tree ~  dnOBDP2(originAge=origin_time,
                     omega=testing,
                     Phi=extant_sampling,
                     occurrence_ages=occurrence_ages,
-                    cond=cond,
                     r=removal,
                     taxa=taxa,
                     useMt=TRUE,
